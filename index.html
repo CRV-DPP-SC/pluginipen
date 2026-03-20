@@ -267,7 +267,7 @@ body {
 let templates=[], editingId=null;
 const COLORS=['#16a34a','#d97706','#dc2626','#2563eb','#7c3aed','#4a6cf7','#db2777','#0d9488','#6b7280'];
 
-const PUBLIC_URL='https://plugin.ppsc.com.br/';
+const PUBLIC_URL='https://crv-dpp-sc.github.io/pluginipen/';
 
 function init(){
   templates=JSON.parse(document.getElementById('template-data').textContent);
@@ -317,7 +317,7 @@ async function downloadPlugin(){
   try{
     const url=PUBLIC_URL;
     const zip=new JSZip(), folder=zip.folder('crv-extension');
-    folder.file('manifest.json',JSON.stringify({manifest_version:3,name:"CRV — Templates iPEN",version:"6.0.0",description:"Templates de transferência para o iPEN — CRV",permissions:["activeTab","clipboardWrite"],content_scripts:[{matches:["<all_urls>"],js:["crv.js"],css:["crv.css"]}]},null,2));
+    folder.file('manifest.json',JSON.stringify({manifest_version:3,name:"CRV — Templates iPEN",version:"6.1.0",description:"Templates de transferência para o iPEN — CRV",permissions:["activeTab","clipboardWrite"],content_scripts:[{matches:["<all_urls>"],js:["crv.js"],css:["crv.css"],all_frames:true}]},null,2));
     folder.file('crv.css',genCSS());
     folder.file('crv.js',genJS(templates,url));
     const blob=await zip.generateAsync({type:'blob'});
