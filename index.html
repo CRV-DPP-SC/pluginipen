@@ -317,7 +317,7 @@ async function downloadPlugin(){
   try{
     const url=PUBLIC_URL;
     const zip=new JSZip(), folder=zip.folder('crv-extension');
-    folder.file('manifest.json',JSON.stringify({manifest_version:3,name:"CRV — Templates iPEN",version:"6.1.0",description:"Templates de transferência para o iPEN — CRV",permissions:["activeTab","clipboardWrite"],content_scripts:[{matches:["<all_urls>"],js:["crv.js"],css:["crv.css"],all_frames:true}]},null,2));
+    folder.file('manifest.json',JSON.stringify({manifest_version:3,name:"CRV — Templates iPEN",version:"6.1.0",description:"Templates de transferência para o iPEN — CRV",permissions:["activeTab","clipboardWrite"],content_scripts:[{matches:["<all_urls>"],js:["crv.js"],css:["crv.css"]}]},null,2));
     folder.file('crv.css',genCSS());
     folder.file('crv.js',genJS(templates,url));
     const blob=await zip.generateAsync({type:'blob'});
@@ -345,19 +345,39 @@ function genJS(tpls,publicURL){
   const TEMPLATE_URL='${publicURL}';
   async function fetchRemote(){try{const r=await fetch(TEMPLATE_URL,{cache:'no-cache'});if(!r.ok)throw new Error(r.status);const h=await r.text(),m=h.match(/<script\\s+id="template-data"[^>]*>([\\s\\S]*?)<\\/script>/i);if(m&&m[1]){const p=JSON.parse(m[1].trim());if(Array.isArray(p)&&p.length){templates=p;updateBadge();renderList();}}}catch(e){console.warn('[CRV] Offline:',e.message);}}` : `function fetchRemote(){return Promise.resolve();}`;
 
-  return `(function(){'use strict';if(document.getElementById('crv-float-btn'))return;
+  return `(function(){'use strict';
+// Skip if already injected or if inside an iframe (only run in top frame)
+if(document.getElementById('crv-float-btn'))return;
+if(window!==window.top)return;
+
 let templates=${json};let panelOpen=false;
 ${fetchBlock}
 function updateBadge(){const b=document.querySelector('.crv-badge');if(b)b.textContent=templates.length+' modelos';}
 function buildUI(){const btn=document.createElement('button');btn.id='crv-float-btn';btn.innerHTML='<svg viewBox="0 0 24 24"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>';btn.title='CRV Templates';btn.addEventListener('click',togglePanel);document.body.appendChild(btn);
-const p=document.createElement('div');p.id='crv-panel';p.innerHTML='<div class="crv-hdr"><h3>CRV — Templates iPEN</h3><span class="crv-badge">'+templates.length+' modelos</span></div><div class="crv-search"><input type="text" id="crv-si" placeholder="Buscar..."></div><div class="crv-list" id="crv-list"></div><div class="crv-ft">v6.0 · Copiar ou Colar no iPEN</div>';document.body.appendChild(p);
+const p=document.createElement('div');p.id='crv-panel';p.innerHTML='<div class="crv-hdr"><h3>CRV — Templates iPEN</h3><span class="crv-badge">'+templates.length+' modelos</span></div><div class="crv-search"><input type="text" id="crv-si" placeholder="Buscar..."></div><div class="crv-list" id="crv-list"></div><div class="crv-ft">v6.1 · Copiar ou Colar no iPEN</div>';document.body.appendChild(p);
 const t=document.createElement('div');t.className='crv-toast';t.id='crv-toast';document.body.appendChild(t);
 document.getElementById('crv-si').addEventListener('input',renderList);}
 function togglePanel(){panelOpen=!panelOpen;const p=document.getElementById('crv-panel'),b=document.getElementById('crv-float-btn');if(panelOpen){p.classList.add('show');b.classList.add('active');b.innerHTML='<svg viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';renderList();fetchRemote().then(renderList);}else{p.classList.remove('show');b.classList.remove('active');b.innerHTML='<svg viewBox="0 0 24 24"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>';}}
 function renderList(){const c=document.getElementById('crv-list'),s=(document.getElementById('crv-si')?.value||'').toLowerCase();const f=templates.filter(t=>t.titulo.toLowerCase().includes(s)||t.texto.toLowerCase().includes(s)||t.categoria.toLowerCase().includes(s));
 c.innerHTML=f.map(t=>'<div class="crv-item"><div class="crv-item-hdr"><div class="crv-item-dot" style="background:'+t.cor+'"></div><span class="crv-item-title">'+t.titulo+'</span></div><div class="crv-item-preview">'+t.texto.substring(0,120)+'...</div><div class="crv-item-actions"><button class="crv-item-btn" data-a="copy" data-id="'+t.id+'">📋 Copiar</button><button class="crv-item-btn paste" data-a="paste" data-id="'+t.id+'">📝 Colar no iPEN</button></div></div>').join('');
 c.querySelectorAll('.crv-item-btn').forEach(b=>{b.addEventListener('click',e=>{e.stopPropagation();const tm=templates.find(x=>x.id===b.dataset.id);if(!tm)return;b.dataset.a==='copy'?navigator.clipboard.writeText(tm.texto).then(()=>showToast('Copiado!')):pasteToIPEN(tm.texto);});});}
-function pasteToIPEN(t){const f=document.querySelector('textarea#de_ObservacaoSituacao')||document.querySelector('textarea[name="de_ObservacaoSituacao"]')||document.querySelector('textarea.input');if(f){f.focus();f.value=t;f.dispatchEvent(new Event('input',{bubbles:true}));f.dispatchEvent(new Event('change',{bubbles:true}));f.dispatchEvent(new Event('blur',{bubbles:true}));showToast('Colado no iPEN!');}else{navigator.clipboard.writeText(t).then(()=>showToast('Campo não encontrado — texto copiado!'));}}
+function findTextarea(){
+  // 1. Try current document
+  var f=document.querySelector('textarea#de_ObservacaoSituacao')||document.querySelector('textarea[name="de_ObservacaoSituacao"]');
+  if(f)return f;
+  // 2. Search inside all iframes
+  try{var iframes=document.querySelectorAll('iframe,frame');
+  for(var i=0;i<iframes.length;i++){try{var doc=iframes[i].contentDocument||iframes[i].contentWindow.document;
+  f=doc.querySelector('textarea#de_ObservacaoSituacao')||doc.querySelector('textarea[name="de_ObservacaoSituacao"]');
+  if(f)return f;
+  // 3. Search nested iframes
+  var nested=doc.querySelectorAll('iframe,frame');
+  for(var j=0;j<nested.length;j++){try{var ndoc=nested[j].contentDocument||nested[j].contentWindow.document;
+  f=ndoc.querySelector('textarea#de_ObservacaoSituacao')||ndoc.querySelector('textarea[name="de_ObservacaoSituacao"]');
+  if(f)return f;}catch(e){}}
+  }catch(e){}}}catch(e){}
+  return null;}
+function pasteToIPEN(t){var f=findTextarea();if(f){f.focus();f.value=t;f.dispatchEvent(new Event('input',{bubbles:true}));f.dispatchEvent(new Event('change',{bubbles:true}));f.dispatchEvent(new Event('blur',{bubbles:true}));showToast('Colado no iPEN!');}else{navigator.clipboard.writeText(t).then(()=>showToast('Campo não encontrado — texto copiado!'));}}
 function showToast(m){const e=document.getElementById('crv-toast');e.textContent=m;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),2000);}
 buildUI();renderList();})();`;}
 
